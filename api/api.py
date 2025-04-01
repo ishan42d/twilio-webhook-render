@@ -1,5 +1,4 @@
 from fastapi import FastAPI, Request, Form
-from fastapi.responses import Response
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
 from dotenv import load_dotenv
@@ -19,6 +18,9 @@ app = FastAPI()
 # Dictionary to track pending shift requests
 pending_requests = {}
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
 @app.post("/whatsapp-webhook")
 async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = Form(None)):
     """
@@ -31,52 +33,55 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
         From = data.get("From", "")
         Body = data.get("Body", "")
 
+    logging.info(f"Incoming message from {From}: {Body}")
     response = MessagingResponse()
 
     if "sick" in (Body or "").lower():
+        logging.info("Employee reported sick. Notifying backup.")
         response.message("Got it! We will notify available employees for shift replacement.")
-        notify_employee()  # Send backfill request to your actual WhatsApp number
-
+        notify_employee()
+    
     elif "accept" in (Body or "").lower():
+        logging.info(f"Received 'Accept' from {From}. Checking pending requests.")
+
         if From in pending_requests:
             response.message("✅ You have been assigned this shift successfully.")
             del pending_requests[From]  # Remove request after acceptance
         else:
-            response.message("No pending shift request found for you.")
-
+            response.message("❌ No pending shift request found for you. Are you responding to a valid shift request?")
+    
     elif "decline" in (Body or "").lower():
         if From in pending_requests:
             response.message("❌ You have declined the shift request. Checking for next available employee...")
             del pending_requests[From]  # Remove request
         else:
             response.message("No pending shift request found for you.")
-
+    
     else:
         response.message("Thanks for your message. How can we assist you?")
 
-    # Return response with the correct content type for Twilio
-    return Response(content=str(response), media_type="application/xml")
+    return str(response)  # Ensures TwiML response with correct Content-Type
 
 
 def notify_employee():
-    """Send shift request message to the employee's actual WhatsApp number."""
-    message_body = (
-        "📢 *Shift Alert!*\n"
-        "Can you cover today's shift for Mr. A?\n\n"
-        "✅ *Reply 'Accept'* to confirm.\n"
-        "❌ *Reply 'Decline'* if you're unavailable."
-    )
+    """Send shift request message and track the request."""
+    global pending_requests
+
+    message = "📢 Shift Alert: Can you backfill today's shift for Mr. A? Reply 'Accept' or 'Decline'."
     
-    send_whatsapp_message(EMPLOYEE_WHATSAPP_NUMBER, message_body)
+    # Store the shift request in pending_requests with recipient's WhatsApp number
+    pending_requests[EMPLOYEE_WHATSAPP_NUMBER] = "Pending"
+
+    send_whatsapp_message(EMPLOYEE_WHATSAPP_NUMBER, message)
 
 
-def send_whatsapp_message(to, body):
+def send_whatsapp_message(to, message):
     """Function to send a WhatsApp message via Twilio."""
     try:
         client = Client(ACCOUNT_SID, AUTH_TOKEN)
         msg = client.messages.create(
             from_=TWILIO_WHATSAPP_NUMBER,
-            body=body,
+            body=message,
             to=to
         )
         logging.info(f"Message sent to {to}: {msg.sid}")
