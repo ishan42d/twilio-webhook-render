@@ -64,26 +64,27 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
 
 
 def notify_employee():
-    """Send shift request message and track the request."""
-    global pending_requests
+    """Send shift request message to your actual WhatsApp number and track it."""
+    global pending_requests  # Ensure we're updating the global dictionary
 
-    message = "📢 Shift Alert: Can you backfill today's shift for Mr. A? Reply 'Accept' or 'Decline'."
+    message = "📢 Shift Alert: Can you backfill today's shift for Mr. A? Reply with 'Accept' or 'Decline'."
     
-    # Store the shift request in pending_requests with recipient's WhatsApp number
-    pending_requests[EMPLOYEE_WHATSAPP_NUMBER] = "Pending"
+    # Store the pending request for your WhatsApp number
+    pending_requests[EMPLOYEE_WHATSAPP_NUMBER] = True  
 
+    # Send the message to the correct employee number
     send_whatsapp_message(EMPLOYEE_WHATSAPP_NUMBER, message)
 
 
-def send_whatsapp_message(message):
+def send_whatsapp_message(to, message):
     """Function to send a WhatsApp message via Twilio."""
     try:
         client = Client(ACCOUNT_SID, AUTH_TOKEN)
         msg = client.messages.create(
             from_=TWILIO_WHATSAPP_NUMBER,
             body=message,
-            to=EMPLOYEE_WHATSAPP_NUMBER  # Ensuring it always sends to your personal number
+            to=to  # Ensure correct recipient
         )
-        logging.info(f"Message sent to {EMPLOYEE_WHATSAPP_NUMBER}: {msg.sid}")
+        logging.info(f"Message sent to {to}: {msg.sid}")
     except Exception as e:
-        logging.error(f"Failed to send message to {EMPLOYEE_WHATSAPP_NUMBER}: {str(e)}")
+        logging.error(f"Failed to send message to {to}: {str(e)}")
