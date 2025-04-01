@@ -59,7 +59,7 @@ async def whatsapp_reply(
 
 def notify_available_employees():
     """Send shift request message to available employees."""
-    available_employees = ["+1234567890", "+0987654321"]  # Example numbers (E.164 format)
+    available_employees = ["+447766674459"]  # Example numbers (E.164 format)
     message = "Can you please backfill the shift today for Mr. A as he is off sick today? Reply with 'Accept' or 'Decline'."
     
     for employee in available_employees:
