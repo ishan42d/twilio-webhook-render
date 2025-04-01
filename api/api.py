@@ -22,12 +22,15 @@ app = FastAPI()
 # Track pending shift requests (key: real employee number, value: shift info)
 pending_requests = {}
 
+# Track completed responses to prevent further replies
+completed_requests = set()
+
 @app.post("/whatsapp-webhook")
 async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = Form(None)):
     """
     Handles incoming WhatsApp messages from Twilio.
     """
-    global pending_requests
+    global pending_requests, completed_requests
 
     if request.headers.get("content-type") == "application/json":
         data = await request.json()
@@ -38,14 +41,21 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
 
     response = MessagingResponse()
 
+    # Prevent further replies after action taken
+    if From in completed_requests:
+        response.message("❌ You’ve already responded to this request. No further action is needed.")
+        return Response(content=str(response), media_type="application/xml")
+
     if "sick" in (Body or "").lower():
         logging.info("Employee reported sick. Notifying backup.")
+
+        # Confirm to sick employee first
         response.message("Got it! We will notify available employees for shift replacement.")
 
         # Store the request under the real employee's number
         pending_requests[REAL_EMPLOYEE_WHATSAPP_NUMBER] = "Mr A's shift"
 
-        # Notify the real employee
+        # Notify the real employee after confirming to the sick employee
         notify_real_employee()
 
     elif "accept" in (Body or "").lower():
@@ -53,6 +63,7 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
             logging.info(f"{From} accepted the shift.")
             response.message("✅ You have been assigned this shift successfully.")
             del pending_requests[From]  # Remove request after acceptance
+            completed_requests.add(From)  # Prevent further messages
         else:
             response.message("No pending shift request found for you.")
 
@@ -61,6 +72,7 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
             logging.info(f"{From} declined the shift.")
             response.message("❌ You have declined the shift request. Checking for the next available employee...")
             del pending_requests[From]  # Remove request
+            completed_requests.add(From)  # Prevent further messages
         else:
             response.message("No pending shift request found for you.")
 
