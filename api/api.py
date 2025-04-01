@@ -75,15 +75,15 @@ def notify_employee():
     send_whatsapp_message(EMPLOYEE_WHATSAPP_NUMBER, message)
 
 
-def send_whatsapp_message(to, message):
+def send_whatsapp_message(message):
     """Function to send a WhatsApp message via Twilio."""
     try:
         client = Client(ACCOUNT_SID, AUTH_TOKEN)
         msg = client.messages.create(
             from_=TWILIO_WHATSAPP_NUMBER,
             body=message,
-            to=to
+            to=EMPLOYEE_WHATSAPP_NUMBER  # Ensuring it always sends to your personal number
         )
-        logging.info(f"Message sent to {to}: {msg.sid}")
+        logging.info(f"Message sent to {EMPLOYEE_WHATSAPP_NUMBER}: {msg.sid}")
     except Exception as e:
-        logging.error(f"Failed to send message to {to}: {str(e)}")
+        logging.error(f"Failed to send message to {EMPLOYEE_WHATSAPP_NUMBER}: {str(e)}")
