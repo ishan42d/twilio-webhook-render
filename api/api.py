@@ -1,9 +1,11 @@
 from fastapi import FastAPI, Request, Form
+from fastapi.responses import Response
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
 from dotenv import load_dotenv
 import os
 import logging
+import json
 
 # Load environment variables
 load_dotenv()
@@ -53,36 +55,52 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
     else:
         response.message("Thanks for your message. How can we assist you?")
 
-    return str(response)  # Ensures TwiML response with correct Content-Type
+    # Return response with the correct content type for Twilio
+    return Response(content=str(response), media_type="application/xml")
 
 
 def notify_employee():
-    """Send shift request message to your actual WhatsApp number."""
-    message = {
-        "content_type": "application/json",
-        "from": TWILIO_WHATSAPP_NUMBER,
-        "to": EMPLOYEE_WHATSAPP_NUMBER,
-        "body": "📢 Shift Alert: Can you backfill today's shift for Mr. A? Click below:",
-        "interactive": {
-            "type": "button",
-            "actions": [
-                {"text": "✅ Accept", "payload": "accept"},
-                {"text": "❌ Decline", "payload": "decline"}
-            ]
-        }
-    }
-    send_whatsapp_message(EMPLOYEE_WHATSAPP_NUMBER, message)
+    """Send shift request message to your actual WhatsApp number with interactive buttons."""
+    send_whatsapp_message(
+        EMPLOYEE_WHATSAPP_NUMBER,
+        "📢 Shift Alert: Can you backfill today's shift for Mr. A?",
+        interactive_buttons=[
+            {"type": "reply", "reply": {"id": "accept", "title": "✅ Accept"}},
+            {"type": "reply", "reply": {"id": "decline", "title": "❌ Decline"}}
+        ]
+    )
 
 
-def send_whatsapp_message(to, message):
-    """Function to send a WhatsApp message via Twilio."""
+def send_whatsapp_message(to, body, interactive_buttons=None):
+    """Function to send a WhatsApp message via Twilio with optional interactive buttons."""
     try:
         client = Client(ACCOUNT_SID, AUTH_TOKEN)
-        msg = client.messages.create(
-            from_=TWILIO_WHATSAPP_NUMBER,
-            body=message["body"],
-            to=to
-        )
-        logging.info(f"Message sent to {to}: {msg.sid}")
+
+        if interactive_buttons:
+            # Send an interactive message
+            message_data = {
+                "type": "interactive",
+                "interactive": {
+                    "type": "button",
+                    "body": {"text": body},
+                    "action": {"buttons": interactive_buttons}
+                }
+            }
+            message = client.messages.create(
+                from_=TWILIO_WHATSAPP_NUMBER,
+                to=to,
+                content_type="application/json",
+                body=json.dumps(message_data)
+            )
+        else:
+            # Send a plain text message
+            message = client.messages.create(
+                from_=TWILIO_WHATSAPP_NUMBER,
+                body=body,
+                to=to
+            )
+
+        logging.info(f"Message sent to {to}: {message.sid}")
+
     except Exception as e:
         logging.error(f"Failed to send message to {to}: {str(e)}")
