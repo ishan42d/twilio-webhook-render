@@ -68,7 +68,7 @@ def send_whatsapp_message(to, message):
     from twilio.rest import Client
     
     ACCOUNT_SID = "AC53c5767d5510114b2a80e55572bdfb0a"
-    AUTH_TOKEN = "1b4e80cf6197abd2c5f5bd1bc9e3819e"
+    AUTH_TOKEN = "c7991ff9aeda47b297c3a4d6d4c9a5d0"
     TWILIO_WHATSAPP_NUMBER = "whatsapp:+14155238886"
     
     client = Client(ACCOUNT_SID, AUTH_TOKEN)
