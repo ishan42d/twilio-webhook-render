@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
 
-# Dictionary to track pending shift requests
+# Track pending shift requests (key: real employee number, value: shift info)
 pending_requests = {}
 
 @app.post("/whatsapp-webhook")
@@ -42,9 +42,11 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
         logging.info("Employee reported sick. Notifying backup.")
         response.message("Got it! We will notify available employees for shift replacement.")
 
-        # Store the request
-        pending_requests[From] = True
-        notify_real_employee(From)  # Notify an actual employee, not sandbox
+        # Store the request under the real employee's number
+        pending_requests[REAL_EMPLOYEE_WHATSAPP_NUMBER] = "Mr A's shift"
+
+        # Notify the real employee
+        notify_real_employee()
 
     elif "accept" in (Body or "").lower():
         if From in pending_requests:
@@ -52,7 +54,6 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
             response.message("✅ You have been assigned this shift successfully.")
             del pending_requests[From]  # Remove request after acceptance
         else:
-            logging.info(f"{From} tried to accept a shift, but no pending request found.")
             response.message("No pending shift request found for you.")
 
     elif "decline" in (Body or "").lower():
@@ -61,7 +62,6 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
             response.message("❌ You have declined the shift request. Checking for the next available employee...")
             del pending_requests[From]  # Remove request
         else:
-            logging.info(f"{From} tried to decline a shift, but no pending request found.")
             response.message("No pending shift request found for you.")
 
     else:
@@ -71,10 +71,11 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
     twilio_response = Response(content=str(response), media_type="application/xml")
     return twilio_response
 
-def notify_real_employee(sick_employee):
+def notify_real_employee():
     """Send shift request message to an actual employee's WhatsApp number."""
     message_body = (
-        f"📢 Shift Alert: Can you backfill today's shift for {sick_employee}? Reply 'Accept' to take the shift or 'Decline' if unavailable."
+        "📢 Shift Alert: Can you backfill today's shift for Mr A? "
+        "Reply 'Accept' to take the shift or 'Decline' if unavailable."
     )
     send_whatsapp_message(REAL_EMPLOYEE_WHATSAPP_NUMBER, message_body)
 
@@ -82,11 +83,11 @@ def send_whatsapp_message(to, message_body):
     """Function to send a WhatsApp message via Twilio."""
     try:
         client = Client(ACCOUNT_SID, AUTH_TOKEN)
-        msg = client.messages.create(
+        client.messages.create(
             from_=TWILIO_WHATSAPP_NUMBER,
             body=message_body,
             to=to
         )
-        logging.info(f"Message sent to {to}: {msg.sid}")
+        # Removed logging of message details
     except Exception as e:
         logging.error(f"Failed to send message to {to}: {str(e)}")
