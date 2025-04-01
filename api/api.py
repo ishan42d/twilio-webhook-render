@@ -67,9 +67,9 @@ def send_whatsapp_message(to, message):
     """Function to send a WhatsApp message via Twilio."""
     from twilio.rest import Client
     
-    ACCOUNT_SID = "your_twilio_account_sid"
-    AUTH_TOKEN = "your_twilio_auth_token"
-    TWILIO_WHATSAPP_NUMBER = "whatsapp:+your_twilio_number"
+    ACCOUNT_SID = "AC53c5767d5510114b2a80e55572bdfb0a"
+    AUTH_TOKEN = "1b4e80cf6197abd2c5f5bd1bc9e3819e"
+    TWILIO_WHATSAPP_NUMBER = "whatsapp:+14155238886"
     
     client = Client(ACCOUNT_SID, AUTH_TOKEN)
     client.messages.create(
