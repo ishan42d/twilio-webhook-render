@@ -1,5 +1,16 @@
 from fastapi import FastAPI, Request, Form
 from twilio.twiml.messaging_response import MessagingResponse
+from twilio.rest import Client
+from dotenv import load_dotenv
+import os
+import logging
+
+# Load environment variables
+load_dotenv()
+
+ACCOUNT_SID = os.getenv("ACCOUNT_SID")
+AUTH_TOKEN = os.getenv("AUTH_TOKEN")
+TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
 
 app = FastAPI()
 
@@ -47,33 +58,42 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
 
 def notify_available_employees():
     """Send shift request message to available employees."""
-    available_employees = ["whatsapp:+1234567890", "whatsapp:+0987654321"]  # Example numbers
+    available_employees = ["+1234567890", "+0987654321"]  # Example numbers (E.164 format)
     message = "Can you please backfill the shift today for Mr. A as he is off sick today? Reply with 'Accept' or 'Decline'."
     for employee in available_employees:
-        pending_requests[employee] = True  # Track pending request
-        send_whatsapp_message(employee, message)
+        formatted_number = format_phone_number(employee)
+        if formatted_number:
+            pending_requests[formatted_number] = True  # Track pending request
+            send_whatsapp_message(formatted_number, message)
 
 
 def notify_next_employee():
     """Forward the shift request to the next available employee."""
-    available_employees = ["whatsapp:+1122334455", "whatsapp:+5566778899"]  # Example alternative numbers
+    available_employees = ["whatsapp:+447766674459"]  # Replace with real numbers
     if available_employees:
-        next_employee = available_employees[0]  # Pick the first available employee
-        pending_requests[next_employee] = True
-        send_whatsapp_message(next_employee, "Can you please backfill the shift today for Mr. A? Reply with 'Accept' or 'Decline'.")
+        next_employee = format_phone_number(available_employees[0])  # Pick the first available employee
+        if next_employee:
+            pending_requests[next_employee] = True
+            send_whatsapp_message(next_employee, "Can you please backfill the shift today for Mr. A? Reply with 'Accept' or 'Decline'.")
 
 
 def send_whatsapp_message(to, message):
     """Function to send a WhatsApp message via Twilio."""
-    from twilio.rest import Client
-    
-    ACCOUNT_SID = "AC53c5767d5510114b2a80e55572bdfb0a"
-    AUTH_TOKEN = "c7991ff9aeda47b297c3a4d6d4c9a5d0"
-    TWILIO_WHATSAPP_NUMBER = "whatsapp:+14155238886"
-    
-    client = Client(ACCOUNT_SID, AUTH_TOKEN)
-    client.messages.create(
-        from_=TWILIO_WHATSAPP_NUMBER,
-        body=message,
-        to=to
-    )
+    try:
+        client = Client(ACCOUNT_SID, AUTH_TOKEN)
+        message = client.messages.create(
+            from_=TWILIO_WHATSAPP_NUMBER,
+            body=message,
+            to=f"whatsapp:{to}"
+        )
+        logging.info(f"Message sent to {to}: {message.sid}")
+    except Exception as e:
+        logging.error(f"Failed to send message to {to}: {str(e)}")
+
+
+def format_phone_number(phone_number):
+    """Ensure phone numbers are in E.164 format."""
+    if phone_number.startswith("+"):
+        return phone_number  # Already in correct format
+    logging.error(f"Invalid phone number format: {phone_number}")
+    return None
