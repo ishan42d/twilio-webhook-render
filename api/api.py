@@ -23,7 +23,7 @@ app = FastAPI()
 # Track pending shift requests (key: employee number, value: shift status)
 pending_requests = {}
 
-def normalize_number(phone_number: str) -> str:
+def normalize_number(phone_number):
     """Normalize phone numbers to ensure consistency in dictionary keys."""
     return phone_number.strip().lower()
 
@@ -34,11 +34,14 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
     """
     global pending_requests
 
+    # Log the raw request data to understand what is being received
+    raw_data = await request.json()
+    logging.info(f"Raw incoming request: {raw_data}")
+
     # Handle JSON content if it comes from Twilio webhook
     if request.headers.get("content-type") == "application/json":
-        data = await request.json()
-        From = data.get("From", "")
-        Body = data.get("Body", "")
+        From = raw_data.get("From", "")
+        Body = raw_data.get("Body", "")
 
     # Check if 'From' is valid, return error if missing
     if not From:
@@ -55,18 +58,11 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
     # Case 1: Employee reports sick and the shift needs to be filled
     if "sick" in body_lower:
         logging.info("Employee reported sick. Notifying backup.")
-
-        # Store the shift as pending for the employee
         pending_requests[normalize_number(REAL_EMPLOYEE_WHATSAPP_NUMBER)] = "pending"
-
-        # Send a response immediately before notifying others
         response.message("Got it! We will notify available employees for shift replacement.")
         twilio_response = Response(content=str(response), media_type="application/xml")
-        
-        # Delay sending the shift request to ensure "Got it!" message appears first
         time.sleep(2)  # 2-second delay
         notify_real_employee()
-
         return twilio_response
 
     # Case 2: Employee accepts the shift
@@ -99,7 +95,7 @@ def notify_real_employee():
     )
     send_whatsapp_message(REAL_EMPLOYEE_WHATSAPP_NUMBER, message_body)
 
-def send_whatsapp_message(to: str, message_body: str):
+def send_whatsapp_message(to, message_body):
     """Function to send a WhatsApp message via Twilio."""
     try:
         client = Client(ACCOUNT_SID, AUTH_TOKEN)
