@@ -23,6 +23,10 @@ app = FastAPI()
 # Track pending shift requests (key: employee number, value: shift status)
 pending_requests = {}
 
+def normalize_number(phone_number):
+    """Normalize phone numbers to ensure consistency in dictionary keys."""
+    return phone_number.strip().lower()
+
 @app.post("/whatsapp-webhook")
 async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = Form(None)):
     """
@@ -35,6 +39,7 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
         From = data.get("From", "")
         Body = data.get("Body", "")
 
+    From = normalize_number(From)
     logging.info(f"Incoming message from {From}: {Body}")
 
     response = MessagingResponse()
@@ -43,19 +48,17 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
     if "sick" in body_lower:
         logging.info("Employee reported sick. Notifying backup.")
 
-        # Notify the sick employee first
-        response.message("Got it! We will notify available employees for shift replacement.")
-        
         # Store the shift as pending
         pending_requests[REAL_EMPLOYEE_WHATSAPP_NUMBER] = "pending"
-        
+
         # Send response immediately before notifying others
+        response.message("Got it! We will notify available employees for shift replacement.")
         twilio_response = Response(content=str(response), media_type="application/xml")
         
         # Delay sending the shift request to make sure "Got it!" appears first
         time.sleep(2)  # 2-second delay
         notify_real_employee()
-
+        
         return twilio_response
 
     elif "accept" in body_lower:
@@ -80,7 +83,7 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
 def notify_real_employee():
     """Send shift request message to an actual employee's WhatsApp number."""
     message_body = (
-        "📢 Shift Alert: Can you backfill today's shift for Mr A? "
+        "\U0001F4E2 Shift Alert: Can you backfill today's shift for Mr A? "
         "Reply 'Accept' to take the shift or 'Decline' if unavailable."
     )
     send_whatsapp_message(REAL_EMPLOYEE_WHATSAPP_NUMBER, message_body)
