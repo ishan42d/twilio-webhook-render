@@ -5,7 +5,7 @@ from twilio.rest import Client
 from dotenv import load_dotenv
 import os
 import logging
-import asyncio
+import time
 
 # Load environment variables
 load_dotenv()
@@ -49,8 +49,14 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
         # Store the shift as pending
         pending_requests[REAL_EMPLOYEE_WHATSAPP_NUMBER] = "pending"
         
-        # Delay before sending the shift request to mimic natural conversation flow
-        asyncio.create_task(delayed_shift_alert())
+        # Send response immediately before notifying others
+        twilio_response = Response(content=str(response), media_type="application/xml")
+        
+        # Delay sending the shift request to make sure "Got it!" appears first
+        time.sleep(2)  # 2-second delay
+        notify_real_employee()
+
+        return twilio_response
 
     elif "accept" in body_lower:
         if pending_requests.get(From) == "pending":
@@ -66,17 +72,10 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
         else:
             response.message("❌ You’ve already responded to this request. No further action is needed.")
 
-    elif From in pending_requests:
-        response.message("❌ You’ve already responded to this request. No further action is needed.")
     else:
         response.message("Thanks for your message. How can we assist you?")
 
     return Response(content=str(response), media_type="application/xml")
-
-async def delayed_shift_alert():
-    """ Delays sending the shift request to make conversation flow naturally. """
-    await asyncio.sleep(2)  # 2-second delay before sending the shift request
-    notify_real_employee()
 
 def notify_real_employee():
     """Send shift request message to an actual employee's WhatsApp number."""
