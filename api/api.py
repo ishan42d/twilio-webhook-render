@@ -12,14 +12,14 @@ load_dotenv()
 ACCOUNT_SID = os.getenv("ACCOUNT_SID")
 AUTH_TOKEN = os.getenv("AUTH_TOKEN")
 TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP")  # Twilio Sandbox Number
-REAL_EMPLOYEE_WHATSAPP_NUMBER = "whatsapp:+447766674459"  # Your actual WhatsApp number
+REAL_EMPLOYEE_WHATSAPP_NUMBER = "whatsapp:+447766674459"  # Employee's WhatsApp number
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
 
-# Track pending shift requests (key: real employee number, value: shift status)
+# Track pending shift requests (key: employee number, value: shift status)
 pending_requests = {}
 
 @app.post("/whatsapp-webhook")
@@ -41,27 +41,33 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
 
     if "sick" in body_lower:
         logging.info("Employee reported sick. Notifying backup.")
-        response.message("Sure Thing! Let me notify other available employees for your shift replacement.")
+
+        # Notify the sick employee first
+        response.message("Got it! We will notify available employees for shift replacement.")
+        
+        # Store the shift as pending
         pending_requests[REAL_EMPLOYEE_WHATSAPP_NUMBER] = "pending"
+        
+        # Send the shift request to other employees
         notify_real_employee()
-    
+
     elif "accept" in body_lower:
         if pending_requests.get(From) == "pending":
             response.message("✅ You have been assigned this shift successfully.")
             pending_requests[From] = "accepted"
         else:
             response.message("❌ You’ve already responded to this request. No further action is needed.")
-    
+
     elif "decline" in body_lower:
         if pending_requests.get(From) == "pending":
             response.message("❌ You have declined the shift request. Checking for the next available employee...")
             pending_requests[From] = "declined"
         else:
             response.message("❌ You’ve already responded to this request. No further action is needed.")
-    
+
     else:
         response.message("Thanks for your message. How can we assist you?")
-    
+
     return Response(content=str(response), media_type="application/xml")
 
 def notify_real_employee():
@@ -81,5 +87,6 @@ def send_whatsapp_message(to, message_body):
             body=message_body,
             to=to
         )
+        logging.info(f"Message sent to {to}: {message_body}")
     except Exception as e:
         logging.error(f"Failed to send message to {to}: {str(e)}")
