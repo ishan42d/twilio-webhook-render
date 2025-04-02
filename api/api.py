@@ -19,11 +19,11 @@ logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
 
-# Track pending shift requests
+# Track pending shift requests (key: employee number, value: shift info)
 pending_requests = {}
 
 # Track completed responses
-completed_requests = set()
+completed_requests = {}
 
 @app.post("/whatsapp-webhook")
 async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = Form(None)):
@@ -41,7 +41,7 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
 
     response = MessagingResponse()
 
-    # Prevent further replies after an action is taken
+    # Prevent further replies after Accept/Decline
     if From in completed_requests:
         response.message("❌ You’ve already responded to this request. No further action is needed.")
         return Response(content=str(response), media_type="application/xml")
@@ -52,27 +52,32 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
         # Confirm to sick employee FIRST
         response.message("Got it! We will notify available employees for shift replacement.")
 
+        # Now return response to Twilio **before** sending notification
+        twilio_response = Response(content=str(response), media_type="application/xml")
+
         # Store the request under the real employee's number
         pending_requests[REAL_EMPLOYEE_WHATSAPP_NUMBER] = "Mr A's shift"
 
-        # Now notify the real employee
+        # Notify real employee AFTER returning response to Twilio
         notify_real_employee()
 
+        return twilio_response  # Ensures "Got it!" appears FIRST
+
     elif "accept" in (Body or "").lower():
-        if REAL_EMPLOYEE_WHATSAPP_NUMBER in pending_requests and From == REAL_EMPLOYEE_WHATSAPP_NUMBER:
+        if From in pending_requests:
             logging.info(f"{From} accepted the shift.")
             response.message("✅ You have been assigned this shift successfully.")
-            del pending_requests[REAL_EMPLOYEE_WHATSAPP_NUMBER]  # Remove request
-            completed_requests.add(From)  # Prevent further responses
+            del pending_requests[From]  # Remove request
+            completed_requests[From] = "accepted"  # Prevent further responses
         else:
             response.message("No pending shift request found for you.")
 
     elif "decline" in (Body or "").lower():
-        if REAL_EMPLOYEE_WHATSAPP_NUMBER in pending_requests and From == REAL_EMPLOYEE_WHATSAPP_NUMBER:
+        if From in pending_requests:
             logging.info(f"{From} declined the shift.")
             response.message("❌ You have declined the shift request. Checking for the next available employee...")
-            del pending_requests[REAL_EMPLOYEE_WHATSAPP_NUMBER]  # Remove request
-            completed_requests.add(From)  # Prevent further responses
+            del pending_requests[From]  # Remove request
+            completed_requests[From] = "declined"  # Prevent further responses
         else:
             response.message("No pending shift request found for you.")
 
@@ -87,6 +92,10 @@ def notify_real_employee():
         "📢 Shift Alert: Can you backfill today's shift for Mr A? "
         "Reply 'Accept' to take the shift or 'Decline' if unavailable."
     )
+    
+    # Store shift request under real employee's number
+    pending_requests[REAL_EMPLOYEE_WHATSAPP_NUMBER] = "Mr A's shift"
+
     send_whatsapp_message(REAL_EMPLOYEE_WHATSAPP_NUMBER, message_body)
 
 def send_whatsapp_message(to, message_body):
