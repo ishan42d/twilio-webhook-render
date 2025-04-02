@@ -12,7 +12,7 @@ load_dotenv()
 ACCOUNT_SID = os.getenv("ACCOUNT_SID")
 AUTH_TOKEN = os.getenv("AUTH_TOKEN")
 TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP")  # Twilio Sandbox Number
-REAL_EMPLOYEE_WHATSAPP_NUMBER = "whatsapp:+447766674459"  # Actual Employee's WhatsApp Number
+REAL_EMPLOYEE_WHATSAPP_NUMBER = "whatsapp:+447766674459"  # Replace with actual employee's WhatsApp number
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -48,17 +48,12 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
 
     if "sick" in (Body or "").lower():
         logging.info("Employee reported sick. Notifying backup.")
-        
+
         # Confirm to sick employee FIRST
         response.message("Got it! We will notify available employees for shift replacement.")
-
-        # Now return response to Twilio **before** sending notification
         twilio_response = Response(content=str(response), media_type="application/xml")
 
-        # Store the request under the real employee's number
-        pending_requests[REAL_EMPLOYEE_WHATSAPP_NUMBER] = "Mr A's shift"
-
-        # Notify real employee AFTER returning response to Twilio
+        # Notify employees AFTER returning response
         notify_real_employee()
 
         return twilio_response  # Ensures "Got it!" appears FIRST
@@ -79,7 +74,7 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
             del pending_requests[From]  # Remove request
             completed_requests[From] = "declined"  # Prevent further responses
         else:
-            response.message("No pending shift request found for you.")
+            response.message("No pending shift request found for you.")  # <-- Fixing this
 
     else:
         response.message("Thanks for your message. How can we assist you?")
@@ -93,7 +88,7 @@ def notify_real_employee():
         "Reply 'Accept' to take the shift or 'Decline' if unavailable."
     )
     
-    # Store shift request under real employee's number
+    # Add the real employee to pending requests
     pending_requests[REAL_EMPLOYEE_WHATSAPP_NUMBER] = "Mr A's shift"
 
     send_whatsapp_message(REAL_EMPLOYEE_WHATSAPP_NUMBER, message_body)
