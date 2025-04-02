@@ -80,7 +80,7 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
             response.message("No pending shift request found for you.")
     
     # Handle decline message
-    elif "decline" in Body:
+   else: "decline" in Body:
         if From in pending_requests:
             logging.info(f"{From} declined the shift for {pending_requests[From]}.")
             response.message("❌ You have declined the shift request. Checking for the next available employee...")
@@ -92,10 +92,6 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
             # Could add logic here to notify next employee
         else:
             response.message("No pending shift request found for you.")
-    
-    # Handle any other message
-    else:
-        response.message("Thanks for your message. How can we assist you?")
     
     return Response(content=str(response), media_type="application/xml")
 
