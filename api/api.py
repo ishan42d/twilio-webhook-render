@@ -71,7 +71,7 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
     elif "decline" in body_lower:
         if pending_requests.get(From) == "pending":
             response.message("❌ You have declined the shift request. Checking for the next available employee...")
-            pending_requests[From] = "declined"
+            pending_requests[From] = "declined"  # Update after sending response
         else:
             response.message("❌ You’ve already responded to this request. No further action is needed.")
 
