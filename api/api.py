@@ -5,6 +5,7 @@ from twilio.rest import Client
 from dotenv import load_dotenv
 import os
 import logging
+import time  # Add time module for delay
 
 # Load environment variables
 load_dotenv()
@@ -35,7 +36,6 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
     """
     global pending_requests
 
-    # Log entire request for debugging
     try:
         request_data = await request.form()  # Extract form data
         logging.info(f"Received WhatsApp request: {dict(request_data)}")
@@ -60,12 +60,18 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
         # Store the shift as pending
         pending_requests[normalize_number(REAL_EMPLOYEE_WHATSAPP_NUMBER)] = "pending"
 
-        # Send response immediately
+        # Send immediate "Got it" response
         response.message("Got it! We will notify available employees for shift replacement.")
         twilio_response = Response(content=str(response), media_type="application/xml")
 
-        # Notify available employee asynchronously
-        notify_real_employee()
+        # Introduce a slight delay to ensure "Got it!" appears first
+        time.sleep(2)
+
+        # Send shift request message after "Got it!"
+        send_whatsapp_message(REAL_EMPLOYEE_WHATSAPP_NUMBER, 
+            "\U0001F4E2 Shift Alert: Can you backfill today's shift for Mr A? "
+            "Reply 'Accept' to take the shift or 'Decline' if unavailable."
+        )
 
         return twilio_response
 
@@ -84,21 +90,12 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
             response.message("❌ You’ve already responded to this request. No further action is needed.")
 
     else:
-        # Handle additional messages after response
         if pending_requests.get(From) in ["accepted", "declined"]:
             response.message("❌ You’ve already responded to this request. No further action is needed.")
         else:
             response.message("Thanks for your message. How can we assist you?")
 
     return Response(content=str(response), media_type="application/xml")
-
-def notify_real_employee():
-    """Send shift request message to an actual employee's WhatsApp number."""
-    message_body = (
-        "\U0001F4E2 Shift Alert: Can you backfill today's shift for Mr A? "
-        "Reply 'Accept' to take the shift or 'Decline' if unavailable."
-    )
-    send_whatsapp_message(REAL_EMPLOYEE_WHATSAPP_NUMBER, message_body)
 
 def send_whatsapp_message(to, message_body):
     """Function to send a WhatsApp message via Twilio."""
