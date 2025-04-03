@@ -84,7 +84,11 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
             response.message("❌ You’ve already responded to this request. No further action is needed.")
 
     else:
-        response.message("Thanks for your message. How can we assist you?")
+        # Handle additional messages after response
+        if pending_requests.get(From) in ["accepted", "declined"]:
+            response.message("❌ You’ve already responded to this request. No further action is needed.")
+        else:
+            response.message("Thanks for your message. How can we assist you?")
 
     return Response(content=str(response), media_type="application/xml")
 
