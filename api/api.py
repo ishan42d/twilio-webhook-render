@@ -1,11 +1,10 @@
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import Response
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
 from dotenv import load_dotenv
 import os
 import logging
-import time
 
 # Load environment variables
 load_dotenv()
@@ -25,6 +24,8 @@ pending_requests = {}
 
 def normalize_number(phone_number):
     """Normalize phone numbers to ensure consistency in dictionary keys."""
+    if not phone_number:
+        return None  # Handle missing phone numbers
     return phone_number.strip().lower()
 
 @app.post("/whatsapp-webhook")
@@ -34,44 +35,51 @@ async def whatsapp_reply(request: Request, From: str = Form(None), Body: str = F
     """
     global pending_requests
 
-    if request.headers.get("content-type") == "application/json":
-        data = await request.json()
-        From = data.get("From", "")
-        Body = data.get("Body", "")
+    # Log entire request for debugging
+    try:
+        request_data = await request.form()  # Extract form data
+        logging.info(f"Received WhatsApp request: {dict(request_data)}")
+    except Exception as e:
+        logging.error(f"Error parsing request: {str(e)}")
+        raise HTTPException(status_code=400, detail="Invalid request format")
+
+    if not From:
+        logging.error("Missing 'From' field in request.")
+        return Response(content="<Response><Message>Error: Missing sender information.</Message></Response>", media_type="application/xml")
 
     From = normalize_number(From)
+    Body = Body.strip().lower() if Body else ""
+
     logging.info(f"Incoming message from {From}: {Body}")
 
     response = MessagingResponse()
-    body_lower = (Body or "").strip().lower()
 
-    if "sick" in body_lower:
+    if "sick" in Body:
         logging.info("Employee reported sick. Notifying backup.")
 
         # Store the shift as pending
         pending_requests[normalize_number(REAL_EMPLOYEE_WHATSAPP_NUMBER)] = "pending"
 
-        # Send response immediately before notifying others
+        # Send response immediately
         response.message("Got it! We will notify available employees for shift replacement.")
         twilio_response = Response(content=str(response), media_type="application/xml")
-        
-        # Delay sending the shift request to make sure "Got it!" appears first
-        time.sleep(2)  # 2-second delay
+
+        # Notify available employee asynchronously
         notify_real_employee()
-        
+
         return twilio_response
 
-    elif "accept" in body_lower:
+    elif "accept" in Body:
         if pending_requests.get(From) == "pending":
             response.message("✅ You have been assigned this shift successfully.")
             pending_requests[From] = "accepted"
         else:
             response.message("❌ You’ve already responded to this request. No further action is needed.")
 
-    elif "decline" in body_lower:
+    elif "decline" in Body:
         if pending_requests.get(From) == "pending":
             response.message("❌ You have declined the shift request. Checking for the next available employee...")
-            pending_requests[From] = "declined"  # Update after sending response
+            pending_requests[From] = "declined"
         else:
             response.message("❌ You’ve already responded to this request. No further action is needed.")
 
@@ -97,6 +105,6 @@ def send_whatsapp_message(to, message_body):
             body=message_body,
             to=to
         )
-        logging.info(f"Message sent to {to}: {message_body}")
+        logging.info(f"✅ Message sent to {to}: {message_body}")
     except Exception as e:
-        logging.error(f"Failed to send message to {to}: {str(e)}")
+        logging.error(f"❌ Failed to send message to {to}: {str(e)}")
