@@ -13,7 +13,7 @@ load_dotenv()
 ACCOUNT_SID = os.getenv("ACCOUNT_SID")
 AUTH_TOKEN = os.getenv("AUTH_TOKEN")
 TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP")  # Twilio Sandbox Number
-REAL_EMPLOYEE_WHATSAPP_NUMBER = "whatsapp:+447766674459"  # Employee's WhatsApp number
+REAL_EMPLOYEE_WHATSAPP_NUMBER = "whatsapp:+44XXXXXXX"  # Employee's WhatsApp number
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
